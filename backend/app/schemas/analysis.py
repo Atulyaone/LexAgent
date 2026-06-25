@@ -25,3 +25,5 @@ class AnalyzeResponse(BaseModel):
     firac_brief: FiracBrief
     metadata: AnalysisMetadata
     error: str | None = None
+    trace: list[str] | None = None
+

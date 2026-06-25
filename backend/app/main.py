@@ -94,9 +94,9 @@ async def upload_document(file: UploadFile = File(...)) -> DocumentUploadRespons
         502: {"description": "Gemini API upstream error"},
     },
 )
-def analyze_document(request: AnalyzeRequest) -> AnalyzeResponse:
+async def analyze_document(request: AnalyzeRequest) -> AnalyzeResponse:
     try:
-        return orchestrator_agent.run_analysis(
+        return await orchestrator_agent.run_analysis(
             request.doc_id,
             model_name=settings.gemini_model,
         )
@@ -105,6 +105,21 @@ def analyze_document(request: AnalyzeRequest) -> AnalyzeResponse:
     except GeminiConfigurationError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except GeminiAPIError as exc:
+        err_msg = str(exc).lower()
+        # Map quota limit, rate limit, or resource exhaustion to 503 Service Unavailable
+        if "429" in err_msg or "quota" in err_msg or "rate limit" in err_msg or "exhausted" in err_msg:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Gemini API quota exhausted or service temporarily unavailable: {str(exc)}"
+            ) from exc
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except FiracGenerationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        err_msg = str(exc).lower()
+        if "429" in err_msg or "quota" in err_msg or "rate limit" in err_msg or "exhausted" in err_msg:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Gemini API quota exhausted or service temporarily unavailable: {str(exc)}"
+            ) from exc
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
